@@ -16,8 +16,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.goout.core.designsystem.GoOutColors
 
 /**
@@ -69,6 +72,18 @@ fun LocationBanner(location: ReportLocationState, onRetry: () -> Unit) {
 }
 
 @Composable
-fun LocationPermissionButton(onRequestPermission: () -> Unit, modifier: Modifier = Modifier) {
-    // TODO(Radit): tombol "Izinkan Akses Lokasi" yang memanggil onRequestPermission.
+fun LocationPermissionButton(
+    granted: Boolean,
+    onRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!granted) {
+        TextButton(
+            onClick = onRequest,
+            modifier = modifier
+                .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(999.dp)),
+        ) {
+            Text("Izinkan Akses Lokasi", color = GoOutColors.Primary, fontSize = 12.sp)
+        }
+    }
 }
