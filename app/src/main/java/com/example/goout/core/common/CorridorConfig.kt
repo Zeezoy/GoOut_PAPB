@@ -48,7 +48,9 @@ object CorridorConfig {
         polyline = listOf(
             GeoPoint(-7.936899, 112.626393), // Simpang Suhat (approx)
             GeoPoint(-7.939502, 112.624926),
+            GeoPoint(-7.941996, 112.622008),
             GeoPoint(-7.944557, 112.619401),
+            GeoPoint(-7.946841, 112.617652),
             GeoPoint(-7.949631, 112.615646), // Jembatan Soehat / Brantas (approx)
         ),
     )
