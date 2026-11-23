@@ -1,0 +1,6 @@
+node_modules/
+# Copied from the repo root by `npm test` (pretest); the root file is the source of truth.
+firestore.rules
+firestore-debug.log
+*.log
+.firebase/

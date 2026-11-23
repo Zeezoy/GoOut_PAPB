@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Go Out</string>
+
+    <!-- Report feedback (exact wording from the functional spec) -->
+    <string name="report_success">Laporan berhasil dikirim.</string>
+    <string name="report_offline">Laporan disimpan dan menunggu sinkronisasi.</string>
+    <string name="report_invalid_location">Lokasi Anda berada di luar area koridor pemantauan.</string>
+    <string name="report_no_location">Tidak dapat memperoleh lokasi. Pastikan GPS aktif.</string>
+    <string name="report_login_required">Silakan login untuk mengirim laporan.</string>
+    <string name="location_invalid">Lokasi Tidak Valid</string>
+
+    <string name="telemetry_notification_channel">Telemetri Pasif</string>
+    <string name="telemetry_notification_title">Go Out — Telemetri aktif</string>
+    <string name="telemetry_notification_text">Membagikan kecepatan kendaraan secara anonim untuk pemantauan koridor.</string>
+</resources>

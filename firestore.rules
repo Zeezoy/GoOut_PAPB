@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function validDensity(s) {
+      return s in ['LANCAR', 'MERAYAP', 'MACET', 'UNKNOWN'];
+    }
+
+    // ── users/{uid} ─────────────────────────────────────────────
+    // A user can only read/write their own profile. No impersonation.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.email is string;
+      allow delete: if false;
+    }
+
+    // ── corridors/{corridorId} ──────────────────────────────────
+    // Public read (Guest Mode shows the map without login).
+    // Authenticated users may update ONLY live traffic fields; the corridor
+    // configuration (name, geometry) is protected from modification.
+    //
+    // ⚠ MVP LIMITATION (documented): aggregation runs on the client, so any
+    // authenticated user can technically write a corridor status. A trusted
+    // Cloud Function performing server-side validation + aggregation is the
+    // recommended hardening step (see docs/ARCHITECTURE.md).
+    match /corridors/{corridorId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.corridorId == corridorId
+        && request.resource.data.corridorName is string
+        && request.resource.data.polyline is string;
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['densityStatus', 'currentSpeed', 'lastUpdated'])
+        && validDensity(request.resource.data.densityStatus)
+        && request.resource.data.currentSpeed is number
+        && request.resource.data.currentSpeed >= 0
+        && request.resource.data.currentSpeed < 200
+        && request.resource.data.lastUpdated is int;
+      allow delete: if false;
+    }
+
+    // ── telemetry/{telemetryId} ─────────────────────────────────
+    // Only authenticated users, only under their own uid, write-once.
+    match /telemetry/{telemetryId} {
+      allow read: if false; // raw telemetry is not exposed to clients
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.telemetryId == telemetryId
+        && request.resource.data.corridorId is string
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.speedKmh is number
+        && request.resource.data.speedKmh >= 0
+        && request.resource.data.speedKmh < 200;
+      // Idempotent retry: overwriting an identical own document is allowed.
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ── reports/{reportId} ──────────────────────────────────────
+    match /reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.reportId == reportId
+        && validDensity(request.resource.data.reportedStatus)
+        && request.resource.data.corridorId is string
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.representativeSpeed is number;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
