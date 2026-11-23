@@ -44,6 +44,7 @@ import com.example.goout.core.designsystem.GoOutColors
 import com.example.goout.core.designsystem.statusColor
 import com.example.goout.domain.model.Corridor
 import com.example.goout.domain.model.DensityStatus
+import com.example.goout.feature.location.LocationPermissionButton
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -78,20 +79,55 @@ fun HomeScreen(
         HomeHeader(isOnline = state.isOnline, onProfileClick = onProfileClick)
         StatusStrip(state)
 
-        // [OWNER: Fevo] [FUNGSI 4] Blok peta Home.
-        // Diharapkan: Box tinggi 400.dp berisi GoogleMap (kamera di MalangCenter, zoom 13,5,
-        // isMyLocationEnabled dari izin lokasi), satu Polyline per koridor berwarna
-        // corridor.densityStatus.statusColor() dan bisa diklik (onCorridorClick),
-        // DensityLegend di kiri atas, tombol "Lapor" (onReportClick) di kanan bawah,
-        // dan LocationPermissionButton (milik Radit) bila izin belum diberikan.
-        // TODO(Fevo)
+        // Peta dengan polyline koridor + legenda + tombol Lapor
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(400.dp),
-            contentAlignment = Alignment.Center,
         ) {
-            Text("TODO Fevo: peta Home")
+            val cameraPositionState = rememberCameraPositionState {
+                position = CameraPosition.fromLatLngZoom(MalangCenter, 13.5f)
+            }
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                properties = MapProperties(isMyLocationEnabled = locationPermission.status.isGranted),
+                uiSettings = MapUiSettings(zoomControlsEnabled = false),
+            ) {
+                state.corridors.forEach { corridor ->
+                    Polyline(
+                        points = corridor.polyline.map { LatLng(it.latitude, it.longitude) },
+                        color = corridor.densityStatus.statusColor(),
+                        width = 18f,
+                        clickable = true,
+                        onClick = { onCorridorClick(corridor.corridorId) },
+                    )
+                }
+            }
+            DensityLegend(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp),
+            )
+            ExtendedFloatingActionButton(
+                onClick = onReportClick,
+                containerColor = GoOutColors.Primary,
+                contentColor = GoOutColors.OnPrimary,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp),
+                icon = { Icon(Icons.Filled.AddLocationAlt, contentDescription = null) },
+                text = { Text("Lapor") },
+                shape = RoundedCornerShape(999.dp),
+            )
+            if (!locationPermission.status.isGranted) {
+                LocationPermissionButton(
+                    onRequestPermission = { locationPermission.launchPermissionRequest() },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp),
+                )
+            }
         }
 
         // Bottom sheet style corridor status panel (Figma: "Status Koridor Terpantau")
