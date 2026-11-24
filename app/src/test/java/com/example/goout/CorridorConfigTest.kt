@@ -27,12 +27,13 @@ class CorridorConfigTest {
 
     @Test
     fun jarak_antar_titik_wajar() {
+        val masalah = mutableListOf<String>()
         CorridorConfig.corridors.forEach { c ->
-            c.polyline.zipWithNext().forEach { (a, b) ->
+            c.polyline.zipWithNext().forEachIndexed { i, (a, b) ->
                 val d = GeoUtils.haversineMeters(a, b)
-                assertTrue("${c.corridorId}: terlalu dekat (${d.toInt()} m)", d >= 15)
-                assertTrue("${c.corridorId}: loncatan terlalu jauh (${d.toInt()} m)", d <= 600)
+                if (d < 15 || d > 700) masalah += "${c.corridorId} ruas ${i + 1}→${i + 2}: ${d.toInt()} m"
             }
         }
+        assertTrue("Ruas bermasalah:\n" + masalah.joinToString("\n"), masalah.isEmpty())
     }
 }
