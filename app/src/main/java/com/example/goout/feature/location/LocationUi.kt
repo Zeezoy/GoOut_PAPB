@@ -73,17 +73,14 @@ fun LocationBanner(location: ReportLocationState, onRetry: () -> Unit) {
 
 @Composable
 fun LocationPermissionButton(
-    granted: Boolean,
-    onRequest: () -> Unit,
+    onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (!granted) {
-        TextButton(
-            onClick = onRequest,
-            modifier = modifier
-                .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(999.dp)),
-        ) {
-            Text("Izinkan Akses Lokasi", color = GoOutColors.Primary, fontSize = 12.sp)
-        }
+    TextButton(
+        onClick = onRequestPermission,
+        modifier = modifier
+            .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(999.dp)),
+    ) {
+        Text("Izinkan Akses Lokasi", color = GoOutColors.Primary, fontSize = 12.sp)
     }
 }
