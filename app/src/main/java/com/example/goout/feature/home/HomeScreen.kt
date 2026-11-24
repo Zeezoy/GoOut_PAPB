@@ -122,7 +122,8 @@ fun HomeScreen(
             )
             if (!locationPermission.status.isGranted) {
                 LocationPermissionButton(
-                    onRequestPermission = { locationPermission.launchPermissionRequest() },
+                    granted = locationPermission.status.isGranted,
+                    onRequest = { locationPermission.launchPermissionRequest() },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(12.dp),

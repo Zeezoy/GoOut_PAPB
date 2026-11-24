@@ -12,9 +12,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.goout.core.designsystem.GoOutColors
 import com.example.goout.domain.model.DensityStatus
+import com.example.goout.domain.usecase.ReportResult
 import com.example.goout.feature.location.LocationBanner
 
 /** Layar "Lapor" - pelaporan kondisi lalu lintas 1-tap. */
@@ -38,6 +44,72 @@ fun ReportScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isAuthenticated by viewModel.isAuthenticated.collectAsStateWithLifecycle()
+
+    // Result screens (Figma: Report Submission Success / Failure)
+    when (val result = state.result) {
+        is ReportResult.Delivered -> {
+            ResultPanel(
+                icon = { Icon(Icons.Filled.CheckCircle, null, tint = GoOutColors.Lancar, modifier = Modifier.size(72.dp)) },
+                title = "Laporan Berhasil Terkirim",
+                message = "Laporan berhasil dikirim. Terima kasih telah berkontribusi memperbarui kondisi lalu lintas warga Kota Malang.",
+                primaryLabel = "Kembali ke Peta",
+                onPrimary = { viewModel.clearResult(); onBackToMap() },
+                secondaryLabel = "Kirim Laporan Lain",
+                onSecondary = { viewModel.clearResult(); viewModel.refreshLocation() },
+            )
+            return
+        }
+        is ReportResult.SavedOffline -> {
+            ResultPanel(
+                icon = { Icon(Icons.Filled.CloudOff, null, tint = GoOutColors.OnMerayapContainer, modifier = Modifier.size(72.dp)) },
+                title = "Laporan Menunggu Sinkronisasi",
+                message = "Laporan disimpan dan menunggu sinkronisasi. Draf tersimpan di perangkat dan akan dikirim otomatis saat koneksi kembali.",
+                primaryLabel = "Kembali ke Peta",
+                onPrimary = { viewModel.clearResult(); onBackToMap() },
+                secondaryLabel = "Kirim Laporan Lain",
+                onSecondary = { viewModel.clearResult(); viewModel.refreshLocation() },
+            )
+            return
+        }
+        is ReportResult.InvalidLocation -> {
+            ResultPanel(
+                icon = { Icon(Icons.Filled.ErrorOutline, null, tint = GoOutColors.Macet, modifier = Modifier.size(72.dp)) },
+                title = "Lokasi Tidak Valid",
+                message = "Lokasi Anda berada di luar area koridor pemantauan." +
+                    (result.distanceMeters?.let { " Jarak ke koridor terdekat ±${it.toInt()} m (maksimum 100 m)." } ?: ""),
+                primaryLabel = "Coba Lagi",
+                onPrimary = { viewModel.clearResult(); viewModel.refreshLocation() },
+                secondaryLabel = "Kembali ke Peta",
+                onSecondary = { viewModel.clearResult(); onBackToMap() },
+            )
+            return
+        }
+        ReportResult.LocationUnavailable -> {
+            ResultPanel(
+                icon = { Icon(Icons.Filled.ErrorOutline, null, tint = GoOutColors.Macet, modifier = Modifier.size(72.dp)) },
+                title = "Lokasi Tidak Tersedia",
+                message = "Tidak dapat memperoleh lokasi. Pastikan GPS aktif.",
+                primaryLabel = "Coba Lagi",
+                onPrimary = { viewModel.clearResult(); viewModel.refreshLocation() },
+                secondaryLabel = "Kembali ke Peta",
+                onSecondary = { viewModel.clearResult(); onBackToMap() },
+            )
+            return
+        }
+        ReportResult.NotAuthenticated -> {
+            ResultPanel(
+                icon = { Icon(Icons.Filled.ErrorOutline, null, tint = GoOutColors.Primary, modifier = Modifier.size(72.dp)) },
+                title = "Login Diperlukan",
+                message = "Silakan login untuk mengirim laporan.",
+                primaryLabel = "Masuk",
+                onPrimary = { viewModel.clearResult(); onLogin() },
+                secondaryLabel = "Kembali ke Peta",
+                onSecondary = { viewModel.clearResult(); onBackToMap() },
+            )
+            return
+        }
+        null -> Unit
+    }
 
     Column(
         Modifier
