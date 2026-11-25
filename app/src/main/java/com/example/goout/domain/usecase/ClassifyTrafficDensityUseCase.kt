@@ -15,9 +15,11 @@ import javax.inject.Inject
  *
  * Test spesifikasi: ClassifyTrafficDensityTest (10 test).
  */
-fun classifyTrafficDensity(speedKmh: Double): DensityStatus {
-    // TODO(Bastian): implementasikan sesuai aturan di atas.
-    return DensityStatus.UNKNOWN
+fun classifyTrafficDensity(speedKmh: Double): DensityStatus = when {
+    speedKmh.isNaN() || speedKmh.isInfinite() || speedKmh < 0.0 -> DensityStatus.UNKNOWN
+    speedKmh >= 35.0 -> DensityStatus.LANCAR
+    speedKmh >= 15.0 -> DensityStatus.MERAYAP
+    else -> DensityStatus.MACET
 }
 
 class ClassifyTrafficDensityUseCase @Inject constructor() {
