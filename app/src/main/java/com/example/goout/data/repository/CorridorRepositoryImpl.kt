@@ -134,6 +134,16 @@ class CorridorRepositoryImpl @Inject constructor(
 
                 val current = corridorDao.getById(corridorId) ?: error("Unknown corridor $corridorId")
                 if (timestamp < current.lastUpdated) return@withLock
+
+                val previousFresh = current.currentSpeed != null &&
+                        now - current.lastUpdated <= CorridorConfig.AGGREGATION_WINDOW_MILLIS
+                val aggregated = if (previousFresh) {
+                    CorridorConfig.EMA_ALPHA * speedKmh +
+                            (1 - CorridorConfig.EMA_ALPHA) * current.currentSpeed!!
+                } else {
+                    speedKmh
+                }
+                val status = classifyTrafficDensity(aggregated)
             }
         }
 
