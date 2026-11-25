@@ -144,6 +144,31 @@ class CorridorRepositoryImpl @Inject constructor(
                     speedKmh
                 }
                 val status = classifyTrafficDensity(aggregated)
+
+                val firestore = firebase.firestore
+                var synced = false
+                if (firestore != null) {
+                    runCatching {
+                        firestore.collection(FirestoreSchema.CORRIDORS).document(corridorId)
+                            .set(
+                                mapOf(
+                                    FirestoreSchema.CorridorFields.DENSITY_STATUS to status.name,
+                                    FirestoreSchema.CorridorFields.CURRENT_SPEED to aggregated,
+                                    FirestoreSchema.CorridorFields.LAST_UPDATED to timestamp,
+                                ),
+                                SetOptions.merge(),
+                            ).await()
+                        synced = true
+                    }
+                }
+                corridorDao.upsert(
+                    current.copy(
+                        densityStatus = status.name,
+                        currentSpeed = aggregated,
+                        lastUpdated = timestamp,
+                        isSynced = synced,
+                    ),
+                )
             }
         }
 
