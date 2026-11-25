@@ -5,6 +5,8 @@ import com.example.goout.domain.model.Corridor
 import com.example.goout.domain.model.LocationFix
 import com.example.goout.domain.model.TelemetryEvent
 import javax.inject.Inject
+import com.example.goout.domain.model.GeoPoint
+import java.util.UUID
 
 /** Alasan sebuah fix telemetri tidak dijadikan event. */
 enum class TelemetryRejection {
@@ -46,6 +48,42 @@ class ProcessTelemetryFixUseCase @Inject constructor(
         source: String = "gps",
     ): TelemetryOutcome {
         // TODO(Keenan): implementasikan urutan validasi di atas.
-        return TelemetryOutcome.Rejected(TelemetryRejection.NO_SPEED)
+        if (userId.isNullOrBlank()) return TelemetryOutcome.Rejected(TelemetryRejection.NOT_AUTHENTICATED)
+        val speedMps = fix.speedMetersPerSecond
+            ?: return TelemetryOutcome.Rejected(TelemetryRejection.NO_SPEED)
+        if (speedMps.isNaN() || speedMps < 0f) {
+            return TelemetryOutcome.Rejected(TelemetryRejection.INVALID_SPEED)
+        }
+        val speedKmh = speedMps * MPS_TO_KMH // km/jam = m/s * 3,6
+        val geofence = validateGeofence(
+            GeoPoint(fix.latitude, fix.longitude),
+            corridors,
+            fix.accuracyMeters,
+        )
+        if (!geofence.isValid || geofence.corridorId == null) {
+            return TelemetryOutcome.Rejected(
+                if (geofence.reason == com.example.goout.domain.model.GeofenceReason.POOR_ACCURACY) {
+                    TelemetryRejection.POOR_ACCURACY
+                } else {
+                    TelemetryRejection.OUTSIDE_CORRIDOR
+                },
+            )
+        }
+        if (now - lastAcceptedAt < minIntervalMillis) {
+            return TelemetryOutcome.Rejected(TelemetryRejection.TOO_FREQUENT)
+        }
+        lastAcceptedAt = now
+        return TelemetryOutcome.Accepted(
+            TelemetryEvent(
+                telemetryId = UUID.randomUUID().toString(),
+                userId = userId,
+                corridorId = geofence.corridorId,
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                speedKmh = speedKmh,
+                timestamp = now,
+                source = source,
+            ),
+        )
     }
 }
