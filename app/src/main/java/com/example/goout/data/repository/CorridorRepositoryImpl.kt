@@ -125,10 +125,17 @@ class CorridorRepositoryImpl @Inject constructor(
      *  - tulis (merge) densityStatus, currentSpeed, lastUpdated ke Firestore, lalu ke Room
      *  - gunakan aggregationMutex agar pembaruan serentak tidak saling menimpa
      */
-    override suspend fun applyMeasurement(corridorId: String, speedKmh: Double, timestamp: Long): Result<Unit> {
-        // TODO(Bastian): implementasikan kebijakan agregasi di atas.
-        return Result.success(Unit)
-    }
+    override suspend fun applyMeasurement(corridorId: String, speedKmh: Double, timestamp: Long): Result<Unit> =
+        runCatching {
+            if (speedKmh.isNaN() || speedKmh.isInfinite() || speedKmh < 0) error("Invalid speed")
+            aggregationMutex.withLock {
+                val now = System.currentTimeMillis()
+                if (now - timestamp > CorridorConfig.AGGREGATION_WINDOW_MILLIS) return@withLock
+
+                val current = corridorDao.getById(corridorId) ?: error("Unknown corridor $corridorId")
+                if (timestamp < current.lastUpdated) return@withLock
+            }
+        }
 
     private fun DocumentSnapshot.toEntity(): CorridorEntity? {
         val id = id.ifBlank { return null }
