@@ -76,6 +76,17 @@ class TelemetryService : LifecycleService() {
                     // TODO(Keenan): ambil koridor, proses fix dengan processFix, dan bila Accepted:
                     // simpan lokal (telemetryRepository.saveLocal), terapkan pengukuran ke koridor
                     // (corridorRepository.applyMeasurement), lalu jadwalkan sync.
+                    val corridors = corridorRepository.observeCorridors().first()
+                    val outcome = processFix(authRepository.currentUser?.uid, fix, corridors)
+                    if (outcome is TelemetryOutcome.Accepted) {
+                        telemetryRepository.saveLocal(outcome.event)
+                        corridorRepository.applyMeasurement(
+                            outcome.event.corridorId,
+                            outcome.event.speedKmh,
+                            outcome.event.timestamp,
+                        )
+                        syncScheduler.scheduleSync()
+                    }
                 }
         }
     }

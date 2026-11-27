@@ -19,7 +19,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,14 +34,14 @@ class LocationRepositoryImpl @Inject constructor(
 
     override fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
 
     override fun isLocationEnabled(): Boolean {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
         return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
     /**
@@ -52,9 +51,21 @@ class LocationRepositoryImpl @Inject constructor(
      * Diharapkan: null bila izin atau GPS tidak tersedia; selain itu LocationFix berisi
      * lat, lng, kecepatan (null bila fix tanpa kecepatan), akurasi (null bila tidak ada), waktu.
      */
+    @SuppressLint("MissingPermission")
     override suspend fun getCurrentLocation(): LocationFix? {
         // TODO(Keenan)
-        return null
+        if (!hasLocationPermission() || !isLocationEnabled()) return null
+        return runCatching {
+            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+        }.getOrNull()?.let {
+            LocationFix(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                speedMetersPerSecond = if (it.hasSpeed()) it.speed else null,
+                accuracyMeters = if (it.hasAccuracy()) it.accuracy else null,
+                timestamp = it.time,
+            )
+        }
     }
 
     /**
@@ -65,8 +76,33 @@ class LocationRepositoryImpl @Inject constructor(
      * PRIORITY_HIGH_ACCURACY dengan interval [intervalMillis], tutup flow bila izin
      * belum ada, dan removeLocationUpdates di awaitClose.
      */
-    override fun locationUpdates(intervalMillis: Long): Flow<LocationFix> {
+    @SuppressLint("MissingPermission")
+    override fun locationUpdates(intervalMillis: Long): Flow<LocationFix> = callbackFlow {
         // TODO(Keenan)
-        return emptyFlow()
+        if (!hasLocationPermission()) {
+            close(SecurityException("Izin lokasi belum diberikan"))
+            return@callbackFlow
+        }
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMillis)
+            .setMinUpdateIntervalMillis(intervalMillis / 2)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let {
+                    trySend(
+                        LocationFix(
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            speedMetersPerSecond = if (it.hasSpeed()) it.speed else null,
+                            accuracyMeters = if (it.hasAccuracy()) it.accuracy else null,
+                            timestamp = it.time,
+                        ),
+                    )
+                }
+            }
+        }
+        fused.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        // Berhenti minta update saat flow ditutup (service berhenti).
+        awaitClose { fused.removeLocationUpdates(callback) }
     }
 }
