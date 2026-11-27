@@ -125,10 +125,52 @@ class CorridorRepositoryImpl @Inject constructor(
      *  - tulis (merge) densityStatus, currentSpeed, lastUpdated ke Firestore, lalu ke Room
      *  - gunakan aggregationMutex agar pembaruan serentak tidak saling menimpa
      */
-    override suspend fun applyMeasurement(corridorId: String, speedKmh: Double, timestamp: Long): Result<Unit> {
-        // TODO(Bastian): implementasikan kebijakan agregasi di atas.
-        return Result.success(Unit)
-    }
+    override suspend fun applyMeasurement(corridorId: String, speedKmh: Double, timestamp: Long): Result<Unit> =
+        runCatching {
+            if (speedKmh.isNaN() || speedKmh.isInfinite() || speedKmh < 0) error("Invalid speed")
+            aggregationMutex.withLock {
+                val now = System.currentTimeMillis()
+                if (now - timestamp > CorridorConfig.AGGREGATION_WINDOW_MILLIS) return@withLock
+
+                val current = corridorDao.getById(corridorId) ?: error("Unknown corridor $corridorId")
+                if (timestamp < current.lastUpdated) return@withLock
+
+                val previousFresh = current.currentSpeed != null &&
+                        now - current.lastUpdated <= CorridorConfig.AGGREGATION_WINDOW_MILLIS
+                val aggregated = if (previousFresh) {
+                    CorridorConfig.EMA_ALPHA * speedKmh +
+                            (1 - CorridorConfig.EMA_ALPHA) * current.currentSpeed!!
+                } else {
+                    speedKmh
+                }
+                val status = classifyTrafficDensity(aggregated)
+
+                val firestore = firebase.firestore
+                var synced = false
+                if (firestore != null) {
+                    runCatching {
+                        firestore.collection(FirestoreSchema.CORRIDORS).document(corridorId)
+                            .set(
+                                mapOf(
+                                    FirestoreSchema.CorridorFields.DENSITY_STATUS to status.name,
+                                    FirestoreSchema.CorridorFields.CURRENT_SPEED to aggregated,
+                                    FirestoreSchema.CorridorFields.LAST_UPDATED to timestamp,
+                                ),
+                                SetOptions.merge(),
+                            ).await()
+                        synced = true
+                    }
+                }
+                corridorDao.upsert(
+                    current.copy(
+                        densityStatus = status.name,
+                        currentSpeed = aggregated,
+                        lastUpdated = timestamp,
+                        isSynced = synced,
+                    ),
+                )
+            }
+        }
 
     private fun DocumentSnapshot.toEntity(): CorridorEntity? {
         val id = id.ifBlank { return null }
